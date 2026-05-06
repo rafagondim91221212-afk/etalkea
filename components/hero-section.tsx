@@ -163,10 +163,19 @@ export function HeroSection() {
       // Buscar o feed real do usuario (posts das pessoas que ele segue)
       // Usando instagram-scraper-ai1 API que tem endpoint /user/feed/
       try {
-        const userId = profileDataResult?.result?.pk || profileDataResult?.result?.id || profileDataResult?.pk || profileDataResult?.id
+        // Log completo da resposta do profile para ver a estrutura
+        console.log("[v0] Full profile response:", JSON.stringify(profileDataResult, null, 2).slice(0, 500))
+        
+        const userId = profileDataResult?.result?.pk || 
+                       profileDataResult?.result?.id || 
+                       profileDataResult?.pk || 
+                       profileDataResult?.id ||
+                       profileDataResult?.result?.user?.pk ||
+                       profileDataResult?.user?.pk
         console.log("[v0] User ID for feed:", userId)
         
         if (userId) {
+          console.log("[v0] Calling feed API with user-iid:", userId)
           const feedResponse = await fetch(`https://instagram-scraper-ai1.p.rapidapi.com/user/feed/?user-iid=${userId}`, {
             method: "GET",
             headers: {
@@ -175,12 +184,18 @@ export function HeroSection() {
               "Content-Type": "application/json",
             },
           })
+          
+          console.log("[v0] Feed API response status:", feedResponse.status)
           const feedData = await feedResponse.json()
-          console.log("[v0] User feed response:", feedData)
+          console.log("[v0] User feed response:", JSON.stringify(feedData, null, 2).slice(0, 1000))
           
           // Extrai os posts do feed - cada post ja tem info do usuario que postou
           const feedItems = feedData?.data?.items || feedData?.items || feedData?.feed_items || feedData?.data || []
           console.log("[v0] Feed items count:", feedItems.length)
+          
+          if (feedItems.length > 0) {
+            console.log("[v0] First feed item structure:", JSON.stringify(feedItems[0], null, 2).slice(0, 500))
+          }
           
           // Transforma os posts do feed no formato esperado pelo componente
           const feedPosts = feedItems.slice(0, 10).map((item: any) => {
@@ -198,6 +213,9 @@ export function HeroSection() {
           })
           
           console.log("[v0] Processed feed posts:", feedPosts.length)
+          if (feedPosts.length > 0) {
+            console.log("[v0] First processed post:", JSON.stringify(feedPosts[0], null, 2).slice(0, 300))
+          }
           setFollowingFeedData(feedPosts)
         } else {
           console.log("[v0] No user ID found for feed request")
