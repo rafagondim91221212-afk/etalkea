@@ -1,13 +1,9 @@
-import { MatrixBackground } from "@/components/matrix-background"
-import { HeroSection } from "@/components/hero-section"
+import { Button } from "@/components/ui/button"
 
-export default function Page() {
+export default function Home() {
   return (
-    <div className="relative min-h-screen bg-black">
-      <MatrixBackground />
-      <main className="relative z-10">
-        <HeroSection />
-      </main>
-    </div>
+    <main className="flex min-h-screen items-center justify-center">
+      <Button>Clique aqui</Button>
+    </main>
   )
 }
