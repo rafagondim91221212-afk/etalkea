@@ -185,11 +185,17 @@ export function InstagramFeed({ profileData, username, followingFeed = [] }: Ins
   }
 
   // Posts REAIS das pessoas que o usuario segue (followingFeed)
+  // Suporta tanto estrutura antiga (node) quanto nova API (item direto)
   const followingPosts: Post[] = followingFeed.flatMap((feedItem, userIndex) => {
-    return feedItem.posts.slice(0, 2).map((edge: any, postIndex: number) => {
-      const node = edge.node
-      const carouselImages = node?.edge_sidecar_to_children?.edges?.map((child: any, childIndex: number) => ({
-        url: child.node?.display_url || "/placeholder.svg",
+    console.log("[v0] Processing feed item:", feedItem.user.username, "posts:", feedItem.posts?.length)
+    return feedItem.posts.slice(0, 2).map((item: any, postIndex: number) => {
+      // Nova API retorna item direto, antiga retorna edge.node
+      const post = item.node || item
+      
+      // Carousel images - suporta ambas estruturas
+      const carouselMedia = post?.edge_sidecar_to_children?.edges || post?.carousel_media || []
+      const carouselImages = carouselMedia.map((child: any, childIndex: number) => ({
+        url: child.node?.display_url || child.image_versions2?.candidates?.[0]?.url || child.display_url || "/placeholder.svg",
         locked: childIndex > 1,
       }))
       
@@ -198,19 +204,47 @@ export function InstagramFeed({ profileData, username, followingFeed = [] }: Ins
         ? feedItem.user.username.slice(0, 4) + "*****" 
         : feedItem.user.username + "*****"
       
+      // Pega a imagem do post - suporta varias estruturas de API
+      const postImage = post?.display_url || 
+                        post?.thumbnail_src || 
+                        post?.image_versions2?.candidates?.[0]?.url ||
+                        post?.thumbnail_url ||
+                        post?.media_url ||
+                        "/placeholder.svg"
+      
+      // Pega likes - suporta varias estruturas
+      const likes = post?.edge_liked_by?.count || 
+                    post?.edge_media_preview_like?.count || 
+                    post?.like_count ||
+                    post?.likes?.count ||
+                    Math.floor(Math.random() * 1000) + 100
+      
+      // Pega comments - suporta varias estruturas  
+      const comments = post?.edge_media_to_comment?.count || 
+                       post?.comment_count ||
+                       post?.comments?.count ||
+                       Math.floor(Math.random() * 50) + 5
+      
+      // Pega caption - suporta varias estruturas
+      const caption = post?.edge_media_to_caption?.edges?.[0]?.node?.text || 
+                      post?.caption?.text ||
+                      post?.caption ||
+                      "..."
+      
+      // Pega timestamp - suporta varias estruturas
+      const timestamp = post?.taken_at_timestamp || post?.taken_at || post?.timestamp
+      
       return {
         id: `following-${userIndex}-${postIndex}`,
         username: maskedUsername,
         userImage: feedItem.user.profile_pic_url || "/placeholder.svg",
-        postImage: node?.display_url || node?.thumbnail_src || "/placeholder.svg",
-        carouselImages: carouselImages && carouselImages.length > 0 ? carouselImages : undefined,
-        likes: node?.edge_liked_by?.count || node?.edge_media_preview_like?.count || Math.floor(Math.random() * 1000) + 100,
-        comments: node?.edge_media_to_comment?.count || Math.floor(Math.random() * 50) + 5,
-        caption: node?.edge_media_to_caption?.edges?.[0]?.node?.text || "...",
-        date: node?.taken_at_timestamp
-          ? getTimeAgo(node.taken_at_timestamp)
-          : "recently",
-        isRealFollowing: true, // Marca como post real de quem o usuario segue
+        postImage: postImage,
+        carouselImages: carouselImages.length > 0 ? carouselImages : undefined,
+        likes: likes,
+        comments: comments,
+        caption: typeof caption === 'string' ? caption : "...",
+        date: timestamp ? getTimeAgo(timestamp) : "recently",
+        isRealFollowing: true,
       }
     })
   })
