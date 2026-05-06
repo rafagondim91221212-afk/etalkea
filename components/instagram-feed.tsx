@@ -95,6 +95,21 @@ function JadeStory({ onClose }: { onClose: () => void }) {
   )
 }
 
+// Funcao para formatar o tempo passado
+function getTimeAgo(timestamp: number): string {
+  const now = Date.now()
+  const postDate = timestamp * 1000 // Converter para milliseconds
+  const diffMs = now - postDate
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffHours / 24)
+  
+  if (diffHours < 1) return "just now"
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) > 1 ? 's' : ''} ago`
+  return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) > 1 ? 's' : ''} ago`
+}
+
 interface Post {
   id: string
   username: string
@@ -158,19 +173,27 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
+  // Busca TODOS os posts reais disponiveis da API (nao apenas 2)
   const apiPosts: Post[] =
-    profileData?.result?.edges?.slice(0, 2).map((edge: any, index: number) => {
+    profileData?.result?.edges?.map((edge: any, index: number) => {
       const node = edge.node
+      // Verifica se tem sidecar (carousel/album)
+      const carouselImages = node.edge_sidecar_to_children?.edges?.map((child: any, childIndex: number) => ({
+        url: child.node?.display_url || "/placeholder.svg",
+        locked: childIndex > 1, // Bloqueia apos a segunda imagem
+      }))
+      
       return {
-        id: node.id || `post-${index}`,
-        username: node.owner?.username || username,
-        userImage: node.owner?.profile_pic_url || profileData?.profilePicUrl || "/placeholder.svg",
+        id: node.id || `api-post-${index}`,
+        username: profileData?.username || node.owner?.username || username,
+        userImage: profileData?.profilePicUrl || node.owner?.profile_pic_url || "/placeholder.svg",
         postImage: node.display_url || node.thumbnail_src || "/placeholder.svg",
-        likes: node.edge_liked_by?.count || Math.floor(Math.random() * 100) + 10,
-        comments: node.edge_media_to_comment?.count || Math.floor(Math.random() * 20) + 1,
+        carouselImages: carouselImages && carouselImages.length > 0 ? carouselImages : undefined,
+        likes: node.edge_liked_by?.count || node.edge_media_preview_like?.count || Math.floor(Math.random() * 1000) + 100,
+        comments: node.edge_media_to_comment?.count || Math.floor(Math.random() * 50) + 5,
         caption: node.edge_media_to_caption?.edges?.[0]?.node?.text || "✨",
         date: node.taken_at_timestamp
-          ? new Date(node.taken_at_timestamp * 1000).toLocaleDateString("en-US")
+          ? getTimeAgo(node.taken_at_timestamp)
           : "2 days ago",
       }
     }) || []
@@ -270,7 +293,9 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     },
   ]
 
-  const allPosts = [...fakePosts, ...apiPosts].slice(0, 8)
+  // Mostra posts REAIS da API primeiro, depois os fake
+  // Aumentado para mostrar mais posts reais
+  const allPosts = [...apiPosts, ...fakePosts].slice(0, 12)
 
   const ownerData = profileData?.result?.edges?.[0]?.node?.owner
 
@@ -293,23 +318,31 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     followingCount: profileData?.followingCount ?? ownerData?.following_count ?? ownerData?.edge_follow?.count ?? 0,
   }
 
+  // Mascara o username real para privacidade (mostra apenas parte)
+  const maskedUsername = username.length > 4 
+    ? username.slice(0, 4) + "*****" 
+    : username + "*****"
+
   const stories = [
+    // Primeiro story e o do usuario pesquisado (dados REAIS)
     { id: 1, username: "Your story", image: userProfilePic, isOwn: true, borderColor: "none" },
+    // Story do usuario pesquisado com foto REAL
     {
       id: 2,
-      username: "xxx*****",
-      image: "/images/story-avatar-1.jpeg",
-      borderColor: "green",
+      username: maskedUsername,
+      image: userProfilePic,
+      borderColor: "gradient", // Gradiente do Instagram
+      isTargetUser: true,
     },
-    { id: 3, username: "xxx*****", image: "/images/story-avatar-2.jpeg", borderColor: "green" },
-    { id: 4, username: "JUL*****", image: "/images/story-avatar-3.jpeg", borderColor: "red" },
-    { id: 5, username: "mar*****", image: "/woman-smiling-photo.jpg", borderColor: "red" },
-    { id: 6, username: "ana*****", image: "/brunette-woman-profile.jpg", borderColor: "red" },
-    { id: 7, username: "bia*****", image: "/blonde-woman-instagram.jpg", borderColor: "red", locked: true },
-    { id: 8, username: "car*****", image: "/redhead-woman-photo.jpg", borderColor: "red", locked: true },
-    { id: 9, username: "fer*****", image: "/attractive-woman-profile.png", borderColor: "red", locked: true },
-    { id: 10, username: "jul*****", image: "/young-woman-selfie.jpg", borderColor: "red", locked: true },
-    { id: 11, username: "isa*****", image: "/blonde-woman-instagram.jpg", borderColor: "red", locked: true },
+    { id: 3, username: "xxx*****", image: "/images/story-avatar-1.jpeg", borderColor: "green" },
+    { id: 4, username: "xxx*****", image: "/images/story-avatar-2.jpeg", borderColor: "green" },
+    { id: 5, username: "JUL*****", image: "/images/story-avatar-3.jpeg", borderColor: "red" },
+    { id: 6, username: "mar*****", image: "/woman-smiling-photo.jpg", borderColor: "red" },
+    { id: 7, username: "ana*****", image: "/brunette-woman-profile.jpg", borderColor: "red", locked: true },
+    { id: 8, username: "bia*****", image: "/blonde-woman-instagram.jpg", borderColor: "red", locked: true },
+    { id: 9, username: "car*****", image: "/redhead-woman-photo.jpg", borderColor: "red", locked: true },
+    { id: 10, username: "fer*****", image: "/attractive-woman-profile.png", borderColor: "red", locked: true },
+    { id: 11, username: "jul*****", image: "/young-woman-selfie.jpg", borderColor: "red", locked: true },
   ]
 
   const handleBlockedAction = () => {
@@ -440,11 +473,13 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
               <div className="relative">
                 <div
                   className={`w-[70px] h-[70px] rounded-full ${
-                    story.borderColor === "green"
-                      ? "bg-gradient-to-br from-green-400 to-green-600"
-                      : story.borderColor === "red"
-                        ? "bg-gradient-to-br from-red-400 to-red-600"
-                        : "bg-gray-800"
+                    story.borderColor === "gradient"
+                      ? "bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600"
+                      : story.borderColor === "green"
+                        ? "bg-gradient-to-br from-green-400 to-green-600"
+                        : story.borderColor === "red"
+                          ? "bg-gradient-to-br from-red-400 to-red-600"
+                          : "bg-gray-800"
                   } p-[2.5px]`}
                 >
                   <div className="w-full h-full rounded-full overflow-hidden border-[3px] border-black relative">
