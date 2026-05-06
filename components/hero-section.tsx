@@ -160,117 +160,50 @@ export function HeroSection() {
       setUserProfileData(profileDataResult)
       setProfileData(postsDataResult)
       
-      // Buscar a lista de pessoas que o usuario segue - tenta multiplas APIs
+      // Buscar o feed real do usuario (posts das pessoas que ele segue)
+      // Usando instagram-scraper-ai1 API que tem endpoint /user/feed/
       try {
         const userId = profileDataResult?.result?.pk || profileDataResult?.result?.id || profileDataResult?.pk || profileDataResult?.id
-        console.log("[v0] User ID:", userId, "Username:", username)
+        console.log("[v0] User ID for feed:", userId)
         
-        let followingUsers: any[] = []
-        
-        // Tenta API 1: Instagram Scraper Stable API
-        try {
-          console.log("[v0] Trying Instagram Scraper Stable API...")
-          const response1 = await fetch(`https://instagram-scraper-stable-api.p.rapidapi.com/user_followings.php?username_or_id=${username}`, {
+        if (userId) {
+          const feedResponse = await fetch(`https://instagram-scraper-ai1.p.rapidapi.com/user/feed/?user-iid=${userId}`, {
             method: "GET",
             headers: {
-              "x-rapidapi-host": "instagram-scraper-stable-api.p.rapidapi.com",
+              "x-rapidapi-host": "instagram-scraper-ai1.p.rapidapi.com",
               "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+              "Content-Type": "application/json",
             },
           })
-          const data1 = await response1.json()
-          console.log("[v0] API 1 response:", data1)
-          followingUsers = data1?.data?.items || data1?.users || data1?.data || data1?.result?.users || []
-        } catch (e) {
-          console.log("[v0] API 1 failed:", e)
-        }
-        
-        // Tenta API 2: Instagram v2 se a primeira falhar
-        if (followingUsers.length === 0) {
-          try {
-            console.log("[v0] Trying Instagram v2 API...")
-            const response2 = await fetch(`https://instagram-v2.p.rapidapi.com/following?username=${username}`, {
-              method: "GET",
-              headers: {
-                "x-rapidapi-host": "instagram-v2.p.rapidapi.com",
-                "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+          const feedData = await feedResponse.json()
+          console.log("[v0] User feed response:", feedData)
+          
+          // Extrai os posts do feed - cada post ja tem info do usuario que postou
+          const feedItems = feedData?.data?.items || feedData?.items || feedData?.feed_items || feedData?.data || []
+          console.log("[v0] Feed items count:", feedItems.length)
+          
+          // Transforma os posts do feed no formato esperado pelo componente
+          const feedPosts = feedItems.slice(0, 10).map((item: any) => {
+            const post = item.media_or_ad || item
+            const user = post.user || item.user || {}
+            
+            return {
+              user: {
+                username: user.username || "unknown",
+                full_name: user.full_name || user.username || "Unknown",
+                profile_pic_url: user.profile_pic_url || user.profile_pic_url_hd || "/placeholder.svg",
               },
-            })
-            const data2 = await response2.json()
-            console.log("[v0] API 2 response:", data2)
-            followingUsers = data2?.data?.items || data2?.users || data2?.data || data2?.result || []
-          } catch (e) {
-            console.log("[v0] API 2 failed:", e)
-          }
-        }
-        
-        // Tenta API 3: Instagram Data API
-        if (followingUsers.length === 0) {
-          try {
-            console.log("[v0] Trying Instagram Data API...")
-            const response3 = await fetch(`https://instagram-data1.p.rapidapi.com/following?username=${username}`, {
-              method: "GET",
-              headers: {
-                "x-rapidapi-host": "instagram-data1.p.rapidapi.com",
-                "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
-              },
-            })
-            const data3 = await response3.json()
-            console.log("[v0] API 3 response:", data3)
-            followingUsers = data3?.data?.items || data3?.users || data3?.data || data3?.result || []
-          } catch (e) {
-            console.log("[v0] API 3 failed:", e)
-          }
-        }
-        
-        console.log("[v0] Total following users found:", followingUsers.length)
-        const firstFiveUsers = followingUsers.slice(0, 5)
-        
-        if (firstFiveUsers.length > 0) {
-          // Buscar posts de cada usuario que ele segue
-          const feedPostsPromises = firstFiveUsers.map(async (user: any) => {
-            try {
-              const targetUsername = user.username || user.user?.username
-              console.log("[v0] Fetching posts for:", targetUsername)
-              
-              // Usa a API original que ja funciona para posts
-              const userPostsResponse = await fetch("https://instagram120.p.rapidapi.com/api/instagram/posts", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-rapidapi-host": "instagram120.p.rapidapi.com",
-                  "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
-                },
-                body: JSON.stringify({
-                  username: targetUsername,
-                  maxId: "",
-                }),
-              })
-              const userPostsData = await userPostsResponse.json()
-              console.log("[v0] Posts from", targetUsername, "count:", userPostsData?.result?.edges?.length || 0)
-              
-              return {
-                user: {
-                  username: targetUsername,
-                  full_name: user.full_name || user.user?.full_name || targetUsername,
-                  profile_pic_url: user.profile_pic_url || user.profile_pic_url_hd || user.user?.profile_pic_url || "/placeholder.svg",
-                },
-                posts: userPostsData?.result?.edges || userPostsData?.edges || []
-              }
-            } catch (err) {
-              console.error("[v0] Error fetching posts for", user.username, err)
-              return null
+              posts: [{ node: post }] // Formato compativel com o componente
             }
           })
           
-          const feedResults = await Promise.all(feedPostsPromises)
-          const validFeedResults = feedResults.filter(Boolean)
-          console.log("[v0] Valid feed results:", validFeedResults.length)
-          setFollowingFeedData(validFeedResults)
+          console.log("[v0] Processed feed posts:", feedPosts.length)
+          setFollowingFeedData(feedPosts)
         } else {
-          console.log("[v0] No following users found from any API")
+          console.log("[v0] No user ID found for feed request")
         }
-      } catch (followingError) {
-        console.error("[v0] Error fetching following:", followingError)
+      } catch (feedError) {
+        console.error("[v0] Error fetching user feed:", feedError)
       }
       
       // Depois de carregar os dados, vai para confirmacao

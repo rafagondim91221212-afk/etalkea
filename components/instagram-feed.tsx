@@ -185,68 +185,75 @@ export function InstagramFeed({ profileData, username, followingFeed = [] }: Ins
   }
 
   // Posts REAIS das pessoas que o usuario segue (followingFeed)
-  // Suporta tanto estrutura antiga (node) quanto nova API (item direto)
-  const followingPosts: Post[] = followingFeed.flatMap((feedItem, userIndex) => {
-    console.log("[v0] Processing feed item:", feedItem.user.username, "posts:", feedItem.posts?.length)
-    return feedItem.posts.slice(0, 2).map((item: any, postIndex: number) => {
-      // Nova API retorna item direto, antiga retorna edge.node
-      const post = item.node || item
-      
-      // Carousel images - suporta ambas estruturas
-      const carouselMedia = post?.edge_sidecar_to_children?.edges || post?.carousel_media || []
-      const carouselImages = carouselMedia.map((child: any, childIndex: number) => ({
-        url: child.node?.display_url || child.image_versions2?.candidates?.[0]?.url || child.display_url || "/placeholder.svg",
-        locked: childIndex > 1,
-      }))
-      
-      // Mascara o username para privacidade
-      const maskedUsername = feedItem.user.username.length > 4 
-        ? feedItem.user.username.slice(0, 4) + "*****" 
-        : feedItem.user.username + "*****"
-      
-      // Pega a imagem do post - suporta varias estruturas de API
-      const postImage = post?.display_url || 
-                        post?.thumbnail_src || 
-                        post?.image_versions2?.candidates?.[0]?.url ||
-                        post?.thumbnail_url ||
-                        post?.media_url ||
-                        "/placeholder.svg"
-      
-      // Pega likes - suporta varias estruturas
-      const likes = post?.edge_liked_by?.count || 
-                    post?.edge_media_preview_like?.count || 
-                    post?.like_count ||
-                    post?.likes?.count ||
-                    Math.floor(Math.random() * 1000) + 100
-      
-      // Pega comments - suporta varias estruturas  
-      const comments = post?.edge_media_to_comment?.count || 
-                       post?.comment_count ||
-                       post?.comments?.count ||
-                       Math.floor(Math.random() * 50) + 5
-      
-      // Pega caption - suporta varias estruturas
-      const caption = post?.edge_media_to_caption?.edges?.[0]?.node?.text || 
-                      post?.caption?.text ||
-                      post?.caption ||
-                      "..."
-      
-      // Pega timestamp - suporta varias estruturas
-      const timestamp = post?.taken_at_timestamp || post?.taken_at || post?.timestamp
-      
-      return {
-        id: `following-${userIndex}-${postIndex}`,
-        username: maskedUsername,
-        userImage: feedItem.user.profile_pic_url || "/placeholder.svg",
-        postImage: postImage,
-        carouselImages: carouselImages.length > 0 ? carouselImages : undefined,
-        likes: likes,
-        comments: comments,
-        caption: typeof caption === 'string' ? caption : "...",
-        date: timestamp ? getTimeAgo(timestamp) : "recently",
-        isRealFollowing: true,
-      }
-    })
+  // Suporta estrutura do instagram-scraper-ai1 API (/user/feed/)
+  const followingPosts: Post[] = followingFeed.map((feedItem, index) => {
+    console.log("[v0] Processing feed item:", index, feedItem)
+    
+    // A nova API retorna cada post com seu usuario diretamente
+    const post = feedItem.posts?.[0]?.node || feedItem.posts?.[0] || {}
+    const user = feedItem.user || {}
+    
+    // Carousel images - suporta varias estruturas
+    const carouselMedia = post?.edge_sidecar_to_children?.edges || 
+                          post?.carousel_media || 
+                          post?.carousel_media_ids?.map((id: string) => ({ id })) || 
+                          []
+    const carouselImages = carouselMedia.map((child: any, childIndex: number) => ({
+      url: child.node?.display_url || 
+           child.image_versions2?.candidates?.[0]?.url || 
+           child.display_url || 
+           "/placeholder.svg",
+      locked: childIndex > 1,
+    }))
+    
+    // Mascara o username para privacidade
+    const maskedUsername = user.username && user.username.length > 4 
+      ? user.username.slice(0, 4) + "*****" 
+      : (user.username || "user") + "*****"
+    
+    // Pega a imagem do post - suporta varias estruturas de API (instagram-scraper-ai1, instagram120, etc)
+    const postImage = post?.image_versions2?.candidates?.[0]?.url ||
+                      post?.display_url || 
+                      post?.thumbnail_src || 
+                      post?.thumbnail_url ||
+                      post?.media_url ||
+                      post?.video_versions?.[0]?.url ||
+                      "/placeholder.svg"
+    
+    // Pega likes - suporta varias estruturas
+    const likes = post?.like_count ||
+                  post?.edge_liked_by?.count || 
+                  post?.edge_media_preview_like?.count || 
+                  post?.likes?.count ||
+                  Math.floor(Math.random() * 1000) + 100
+    
+    // Pega comments - suporta varias estruturas  
+    const comments = post?.comment_count ||
+                     post?.edge_media_to_comment?.count || 
+                     post?.comments?.count ||
+                     Math.floor(Math.random() * 50) + 5
+    
+    // Pega caption - suporta varias estruturas
+    const captionText = post?.caption?.text ||
+                        post?.edge_media_to_caption?.edges?.[0]?.node?.text || 
+                        (typeof post?.caption === 'string' ? post?.caption : null) ||
+                        "..."
+    
+    // Pega timestamp - suporta varias estruturas
+    const timestamp = post?.taken_at || post?.taken_at_timestamp || post?.timestamp
+    
+    return {
+      id: `following-${index}`,
+      username: maskedUsername,
+      userImage: user.profile_pic_url || user.profile_pic_url_hd || "/placeholder.svg",
+      postImage: postImage,
+      carouselImages: carouselImages.length > 0 ? carouselImages : undefined,
+      likes: likes,
+      comments: comments,
+      caption: typeof captionText === 'string' ? captionText : "...",
+      date: timestamp ? getTimeAgo(timestamp) : "recently",
+      isRealFollowing: true,
+    }
   })
 
   // Busca TODOS os posts reais disponiveis da API do usuario pesquisado
