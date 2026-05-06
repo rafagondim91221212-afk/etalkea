@@ -49,11 +49,7 @@ export function HeroSection() {
 
   useEffect(() => {
     setCurrentDay(getDayOfWeek())
-    const savedSearch = localStorage.getItem("instacheck_previous_search")
-    if (savedSearch) {
-      setPreviousSearch(JSON.parse(savedSearch))
-      setShowLimitReached(true)
-    }
+    // Limite de usuario desativado - nao verifica mais o localStorage
   }, [])
 
   useEffect(() => {
@@ -185,18 +181,7 @@ export function HeroSection() {
   }
 
   const handleConfirm = () => {
-    const profile = userProfileData?.result || userProfileData
-    const searchData: PreviousSearch = {
-      username: username,
-      profilePicUrl: profile?.profile_pic_url_hd || profile?.profile_pic_url || "/placeholder.svg",
-      fullName: profile?.full_name || username,
-      biography: profile?.biography || "",
-      followersCount: profile?.follower_count || profile?.edge_followed_by?.count || 0,
-      followingCount: profile?.following_count || profile?.edge_follow?.count || 0,
-      postsCount: profile?.media_count || profile?.edge_owner_to_timeline_media?.count || 0,
-    }
-    localStorage.setItem("instacheck_previous_search", JSON.stringify(searchData))
-
+    // Limite desativado - nao salva mais no localStorage
     // Depois de confirmar, mostra o loading
     setShowConfirmation(false)
     setShowLoading(true)
