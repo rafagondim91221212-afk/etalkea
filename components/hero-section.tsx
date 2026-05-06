@@ -34,6 +34,7 @@ export function HeroSection() {
   const [showFeed, setShowFeed] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
   const [userProfileData, setUserProfileData] = useState<any>(null)
+  const [followingFeedData, setFollowingFeedData] = useState<any[]>([])
   const [currentDay, setCurrentDay] = useState("")
   const [showLimitReached, setShowLimitReached] = useState(false)
   const [showVipFromLimit, setShowVipFromLimit] = useState(false)
@@ -158,6 +159,64 @@ export function HeroSection() {
 
       setUserProfileData(profileDataResult)
       setProfileData(postsDataResult)
+      
+      // Buscar a lista de pessoas que o usuario segue
+      try {
+        const followingResponse = await fetch("https://instagram120.p.rapidapi.com/api/instagram/following", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-rapidapi-host": "instagram120.p.rapidapi.com",
+            "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+          },
+          body: JSON.stringify({
+            username: username,
+          }),
+        })
+        const followingData = await followingResponse.json()
+        console.log("[v0] Following data:", followingData)
+        
+        // Pegar os primeiros 5 usuarios que ele segue e buscar seus posts
+        const followingUsers = followingData?.result?.users || followingData?.users || []
+        const firstFiveUsers = followingUsers.slice(0, 5)
+        
+        const feedPostsPromises = firstFiveUsers.map(async (user: any) => {
+          try {
+            const userPostsResponse = await fetch("https://instagram120.p.rapidapi.com/api/instagram/posts", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-rapidapi-host": "instagram120.p.rapidapi.com",
+                "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+              },
+              body: JSON.stringify({
+                username: user.username || user.user?.username,
+                maxId: "",
+              }),
+            })
+            const userPostsData = await userPostsResponse.json()
+            console.log("[v0] Posts from", user.username, ":", userPostsData)
+            return {
+              user: {
+                username: user.username || user.user?.username,
+                full_name: user.full_name || user.user?.full_name,
+                profile_pic_url: user.profile_pic_url || user.user?.profile_pic_url,
+              },
+              posts: userPostsData?.result?.edges || userPostsData?.edges || []
+            }
+          } catch (err) {
+            console.error("[v0] Error fetching posts for", user.username, err)
+            return null
+          }
+        })
+        
+        const feedResults = await Promise.all(feedPostsPromises)
+        const validFeedResults = feedResults.filter(Boolean)
+        console.log("[v0] Feed results:", validFeedResults)
+        setFollowingFeedData(validFeedResults)
+      } catch (followingError) {
+        console.error("[v0] Error fetching following:", followingError)
+      }
       
       // Depois de carregar os dados, vai para confirmacao
       setShowSearching(false)
@@ -327,7 +386,7 @@ export function HeroSection() {
         profile?.media_count || profile?.edge_owner_to_timeline_media?.count || profileData.result?.edges?.length || 0,
     }
 
-    return <InstagramFeed profileData={enrichedProfileData} username={username} />
+    return <InstagramFeed profileData={enrichedProfileData} username={username} followingFeed={followingFeedData} />
   }
 
   if (showLoading) {

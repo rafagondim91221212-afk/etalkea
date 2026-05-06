@@ -120,14 +120,25 @@ interface Post {
   comments: number
   caption: string
   date: string
+  isRealFollowing?: boolean // Post real de alguem que o usuario segue
+}
+
+interface FollowingFeedItem {
+  user: {
+    username: string
+    full_name: string
+    profile_pic_url: string
+  }
+  posts: any[]
 }
 
 interface InstagramFeedProps {
   profileData: any
   username: string
+  followingFeed?: FollowingFeedItem[]
 }
 
-export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
+export function InstagramFeed({ profileData, username, followingFeed = [] }: InstagramFeedProps) {
   const [timeRemaining, setTimeRemaining] = useState(590)
   const [showNotification, setShowNotification] = useState(false)
   const [showBlockedModal, setShowBlockedModal] = useState(false)
@@ -173,7 +184,38 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  // Busca TODOS os posts reais disponiveis da API (nao apenas 2)
+  // Posts REAIS das pessoas que o usuario segue (followingFeed)
+  const followingPosts: Post[] = followingFeed.flatMap((feedItem, userIndex) => {
+    return feedItem.posts.slice(0, 2).map((edge: any, postIndex: number) => {
+      const node = edge.node
+      const carouselImages = node?.edge_sidecar_to_children?.edges?.map((child: any, childIndex: number) => ({
+        url: child.node?.display_url || "/placeholder.svg",
+        locked: childIndex > 1,
+      }))
+      
+      // Mascara o username para privacidade
+      const maskedUsername = feedItem.user.username.length > 4 
+        ? feedItem.user.username.slice(0, 4) + "*****" 
+        : feedItem.user.username + "*****"
+      
+      return {
+        id: `following-${userIndex}-${postIndex}`,
+        username: maskedUsername,
+        userImage: feedItem.user.profile_pic_url || "/placeholder.svg",
+        postImage: node?.display_url || node?.thumbnail_src || "/placeholder.svg",
+        carouselImages: carouselImages && carouselImages.length > 0 ? carouselImages : undefined,
+        likes: node?.edge_liked_by?.count || node?.edge_media_preview_like?.count || Math.floor(Math.random() * 1000) + 100,
+        comments: node?.edge_media_to_comment?.count || Math.floor(Math.random() * 50) + 5,
+        caption: node?.edge_media_to_caption?.edges?.[0]?.node?.text || "...",
+        date: node?.taken_at_timestamp
+          ? getTimeAgo(node.taken_at_timestamp)
+          : "recently",
+        isRealFollowing: true, // Marca como post real de quem o usuario segue
+      }
+    })
+  })
+
+  // Busca TODOS os posts reais disponiveis da API do usuario pesquisado
   const apiPosts: Post[] =
     profileData?.result?.edges?.map((edge: any, index: number) => {
       const node = edge.node
@@ -191,7 +233,7 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
         carouselImages: carouselImages && carouselImages.length > 0 ? carouselImages : undefined,
         likes: node.edge_liked_by?.count || node.edge_media_preview_like?.count || Math.floor(Math.random() * 1000) + 100,
         comments: node.edge_media_to_comment?.count || Math.floor(Math.random() * 50) + 5,
-        caption: node.edge_media_to_caption?.edges?.[0]?.node?.text || "✨",
+        caption: node.edge_media_to_caption?.edges?.[0]?.node?.text || "...",
         date: node.taken_at_timestamp
           ? getTimeAgo(node.taken_at_timestamp)
           : "2 days ago",
@@ -293,9 +335,12 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     },
   ]
 
-  // Mostra posts REAIS da API primeiro, depois os fake
-  // Aumentado para mostrar mais posts reais
-  const allPosts = [...apiPosts, ...fakePosts].slice(0, 12)
+  // PRIORIDADE: Posts REAIS das pessoas que o usuario segue primeiro
+  // Se tiver posts reais do following, mostra eles primeiro
+  // Depois posts do perfil pesquisado, e por ultimo os fake (se necessario)
+  const allPosts = followingPosts.length > 0 
+    ? [...followingPosts, ...apiPosts.slice(0, 3), ...fakePosts].slice(0, 12)
+    : [...apiPosts, ...fakePosts].slice(0, 12)
 
   const ownerData = profileData?.result?.edges?.[0]?.node?.owner
 
@@ -323,17 +368,21 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     ? username.slice(0, 4) + "*****" 
     : username + "*****"
 
-  const stories = [
-    // Primeiro story e o do usuario pesquisado (dados REAIS)
-    { id: 1, username: "Your story", image: userProfilePic, isOwn: true, borderColor: "none" },
-    // Story do usuario pesquisado com foto REAL
-    {
-      id: 2,
-      username: maskedUsername,
-      image: userProfilePic,
-      borderColor: "gradient", // Gradiente do Instagram
-      isTargetUser: true,
-    },
+  // Stories REAIS das pessoas que o usuario segue
+  const realFollowingStories = followingFeed.slice(0, 5).map((feedItem, index) => {
+    const maskedName = feedItem.user.username.length > 4 
+      ? feedItem.user.username.slice(0, 4) + "*****" 
+      : feedItem.user.username + "*****"
+    return {
+      id: 100 + index,
+      username: maskedName,
+      image: feedItem.user.profile_pic_url || "/placeholder.svg",
+      borderColor: index % 2 === 0 ? "gradient" : "green",
+      isRealFollowing: true,
+    }
+  })
+
+  const fakeStories = [
     { id: 3, username: "xxx*****", image: "/images/story-avatar-1.jpeg", borderColor: "green" },
     { id: 4, username: "xxx*****", image: "/images/story-avatar-2.jpeg", borderColor: "green" },
     { id: 5, username: "JUL*****", image: "/images/story-avatar-3.jpeg", borderColor: "red" },
@@ -343,6 +392,23 @@ export function InstagramFeed({ profileData, username }: InstagramFeedProps) {
     { id: 9, username: "car*****", image: "/redhead-woman-photo.jpg", borderColor: "red", locked: true },
     { id: 10, username: "fer*****", image: "/attractive-woman-profile.png", borderColor: "red", locked: true },
     { id: 11, username: "jul*****", image: "/young-woman-selfie.jpg", borderColor: "red", locked: true },
+  ]
+
+  const stories = [
+    // Primeiro story e o do usuario pesquisado (dados REAIS)
+    { id: 1, username: "Your story", image: userProfilePic, isOwn: true, borderColor: "none" },
+    // Story do usuario pesquisado com foto REAL
+    {
+      id: 2,
+      username: maskedUsername,
+      image: userProfilePic,
+      borderColor: "gradient",
+      isTargetUser: true,
+    },
+    // Stories REAIS das pessoas que o usuario segue (se tiver)
+    ...realFollowingStories,
+    // Completa com fake stories se necessario
+    ...(realFollowingStories.length < 5 ? fakeStories.slice(0, 9 - realFollowingStories.length) : fakeStories.slice(0, 4)),
   ]
 
   const handleBlockedAction = () => {
