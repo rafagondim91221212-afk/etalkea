@@ -160,99 +160,78 @@ export function HeroSection() {
       setUserProfileData(profileDataResult)
       setProfileData(postsDataResult)
       
-      // Buscar a lista de pessoas que o usuario segue e seus posts
-      // Usando instagram-api-fast-reliable-data-scraper API
+      // Buscar posts REAIS de perfis famosos publicos para mostrar no feed
+      // Usando a API instagram120 que ja funciona
       try {
-        console.log("[v0] Starting following fetch for username:", username)
+        // Lista de perfis famosos publicos de todo o mundo
+        const famousProfiles = [
+          "kimkardashian",
+          "cristiano", 
+          "selenagomez",
+          "therock",
+          "kyliejenner",
+          "leomessi",
+          "beyonce",
+          "taylorswift",
+          "kendalljenner",
+          "natgeo",
+          "nike",
+          "neymarjr",
+          "justinbieber",
+          "arianagrande",
+          "khloekardashian"
+        ]
         
-        // Passo 1: Pega o user_id pelo username
-        const userIdResponse = await fetch(`https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/user_id?username=${username}`, {
-          method: "GET",
-          headers: {
-            "x-rapidapi-host": "instagram-api-fast-reliable-data-scraper.p.rapidapi.com",
-            "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
-            "Content-Type": "application/json",
-          },
+        // Seleciona 5 perfis aleatorios
+        const shuffled = famousProfiles.sort(() => 0.5 - Math.random())
+        const selectedProfiles = shuffled.slice(0, 5)
+        
+        const feedPostsPromises = selectedProfiles.map(async (profileUsername: string) => {
+          try {
+            // Busca perfil
+            const profileRes = await fetch("https://instagram120.p.rapidapi.com/api/instagram/profile", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-rapidapi-host": "instagram120.p.rapidapi.com",
+                "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+              },
+              body: JSON.stringify({ username: profileUsername }),
+            })
+            const profileInfo = await profileRes.json()
+            
+            // Busca posts
+            const postsRes = await fetch("https://instagram120.p.rapidapi.com/api/instagram/posts", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-rapidapi-host": "instagram120.p.rapidapi.com",
+                "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
+              },
+              body: JSON.stringify({ username: profileUsername, maxId: "" }),
+            })
+            const postsData = await postsRes.json()
+            
+            const profile = profileInfo?.result || profileInfo
+            
+            return {
+              user: {
+                username: profileUsername,
+                full_name: profile?.full_name || profileUsername,
+                profile_pic_url: profile?.profile_pic_url_hd || profile?.profile_pic_url || "/placeholder.svg",
+              },
+              posts: postsData?.result?.edges || []
+            }
+          } catch (err) {
+            return null
+          }
         })
         
-        const userIdData = await userIdResponse.json()
-        console.log("[v0] User ID response:", userIdData)
-        
-        const userId = userIdData?.user_id || userIdData?.data?.user_id || userIdData?.pk || userIdData?.id
-        console.log("[v0] Extracted User ID:", userId)
-        
-        if (userId) {
-          // Passo 2: Busca a lista de pessoas que o usuario segue
-          console.log("[v0] Fetching following list for user_id:", userId)
-          const followingResponse = await fetch(`https://instagram-api-fast-reliable-data-scraper.p.rapidapi.com/following?user_id=${userId}`, {
-            method: "GET",
-            headers: {
-              "x-rapidapi-host": "instagram-api-fast-reliable-data-scraper.p.rapidapi.com",
-              "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
-              "Content-Type": "application/json",
-            },
-          })
-          
-          const followingData = await followingResponse.json()
-          console.log("[v0] Following list response:", JSON.stringify(followingData, null, 2).slice(0, 1500))
-          
-          // Extrai a lista de usuarios que ele segue
-          const followingUsers = followingData?.users || followingData?.data?.users || followingData?.following || followingData?.data || []
-          console.log("[v0] Following users count:", followingUsers.length)
-          
-          if (followingUsers.length > 0) {
-            console.log("[v0] First following user:", followingUsers[0])
-            
-            // Passo 3: Busca os posts dos primeiros 5 usuarios que ele segue
-            const firstFiveUsers = followingUsers.slice(0, 5)
-            
-            const feedPostsPromises = firstFiveUsers.map(async (user: any) => {
-              try {
-                const targetUsername = user.username || user.user?.username
-                console.log("[v0] Fetching posts for:", targetUsername)
-                
-                // Busca os posts do usuario usando a API original que ja funciona
-                const userPostsResponse = await fetch("https://instagram120.p.rapidapi.com/api/instagram/posts", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "x-rapidapi-host": "instagram120.p.rapidapi.com",
-                    "x-rapidapi-key": "42865ce77amsh6b3ec8ac168e4c3p1ae1b6jsndc1ea20ce2d0",
-                  },
-                  body: JSON.stringify({
-                    username: targetUsername,
-                    maxId: "",
-                  }),
-                })
-                const userPostsData = await userPostsResponse.json()
-                console.log("[v0] Posts from", targetUsername, "count:", userPostsData?.result?.edges?.length || 0)
-                
-                return {
-                  user: {
-                    username: targetUsername,
-                    full_name: user.full_name || user.user?.full_name || targetUsername,
-                    profile_pic_url: user.profile_pic_url || user.profile_pic_url_hd || "/placeholder.svg",
-                  },
-                  posts: userPostsData?.result?.edges || []
-                }
-              } catch (err) {
-                console.error("[v0] Error fetching posts for", user.username, err)
-                return null
-              }
-            })
-            
-            const feedResults = await Promise.all(feedPostsPromises)
-            const validFeedResults = feedResults.filter(Boolean)
-            console.log("[v0] Valid feed results:", validFeedResults.length)
-            setFollowingFeedData(validFeedResults)
-          } else {
-            console.log("[v0] No following users found")
-          }
-        } else {
-          console.log("[v0] Could not get user ID")
-        }
+        const feedResults = await Promise.all(feedPostsPromises)
+        const validFeedResults = feedResults.filter(Boolean)
+        setFollowingFeedData(validFeedResults)
       } catch (feedError) {
-        console.error("[v0] Error fetching following:", feedError)
+        console.error("Error fetching famous profiles:", feedError)
       }
       
       // Depois de carregar os dados, vai para confirmacao
