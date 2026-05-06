@@ -395,16 +395,6 @@ export function InstagramFeed({ profileData, username, followingFeed = [] }: Ins
   ]
 
   const stories = [
-    // Primeiro story e o do usuario pesquisado (dados REAIS)
-    { id: 1, username: "Your story", image: userProfilePic, isOwn: true, borderColor: "none" },
-    // Story do usuario pesquisado com foto REAL
-    {
-      id: 2,
-      username: maskedUsername,
-      image: userProfilePic,
-      borderColor: "gradient",
-      isTargetUser: true,
-    },
     // Stories REAIS das pessoas que o usuario segue (se tiver)
     ...realFollowingStories,
     // Completa com fake stories se necessario
