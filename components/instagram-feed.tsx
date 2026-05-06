@@ -335,12 +335,12 @@ export function InstagramFeed({ profileData, username, followingFeed = [] }: Ins
     },
   ]
 
-  // PRIORIDADE: Posts REAIS das pessoas que o usuario segue primeiro
-  // Se tiver posts reais do following, mostra eles primeiro
-  // Depois posts do perfil pesquisado, e por ultimo os fake (se necessario)
+  // Mostra APENAS posts das pessoas que o usuario segue (NAO do usuario pesquisado)
+  // Se tiver posts reais do following, mostra eles
+  // Se nao conseguir puxar, mostra os fake posts como antes
   const allPosts = followingPosts.length > 0 
-    ? [...followingPosts, ...apiPosts.slice(0, 3), ...fakePosts].slice(0, 12)
-    : [...apiPosts, ...fakePosts].slice(0, 12)
+    ? [...followingPosts, ...fakePosts].slice(0, 12)
+    : [...fakePosts].slice(0, 12)
 
   const ownerData = profileData?.result?.edges?.[0]?.node?.owner
 
